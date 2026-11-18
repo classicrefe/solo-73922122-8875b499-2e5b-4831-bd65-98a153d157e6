@@ -60,3 +60,45 @@ class JobOut(BaseModel):
     @staticmethod
     def utcnow() -> datetime:
         return datetime.now(timezone.utc)
+
+
+# ---------------------------------------------------------------------------
+# 15 分钟用电峰值 API
+# ---------------------------------------------------------------------------
+
+class CreatePeakRequest(BaseModel):
+    line_name: str = Field(..., min_length=1, max_length=128, description="产线名（meters.line_name）")
+    target_hour: datetime = Field(
+        ...,
+        description=(
+            "目标 UTC 整点小时，必须是带时区的整点时刻（tzinfo 必填）；"
+            "如 2026-11-15T09:00:00Z 表示 [09:00, 10:00) UTC"
+        ),
+    )
+    name: str | None = Field(None, max_length=128, description="可选备注名（保留字段）")
+
+
+class PeakWindowOut(BaseModel):
+    window_start: datetime
+    window_end: datetime
+    wh: float                 # 未舍入的分摊电量
+
+
+class PeakConclusionOut(BaseModel):
+    conclusion_id: str
+    line_name: str
+    target_hour: datetime
+    status: Literal["available", "stale"]   # 旧口径（版本落后/被取代/交错）即 stale
+    stale: bool
+    superseded: bool                        # 已被同产线同小时的新结论取代
+    interleaved: bool                       # 计算与源表更正交错，发布时即按过期口径标记
+    data_revision: int                      # 结论对应的数据修订版本
+    latest_revision: int | None = None      # 查询时的最新版本（POST 响应同样回填）
+    meter_count: int
+    meter_ids: list[int]
+    window_minutes: int
+    windows: list[PeakWindowOut]
+    peak_wh: float                          # 未舍入值
+    peak_window_start: datetime
+    peak_window_end: datetime
+    created_at: datetime | None
